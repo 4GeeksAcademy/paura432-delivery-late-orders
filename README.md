@@ -1,112 +1,70 @@
-# Data Science Project Boilerplate
+# ¿Va a llegar tarde el pedido?
 
-This boilerplate is designed to kickstart data science projects by providing a basic setup for database connections, data processing, and machine learning model development. It includes a structured folder organization for your datasets and a set of pre-defined Python packages necessary for most data science tasks.
+Actividad «Tu modelo, del notebook a train.py» del bootcamp AI Engineering de 4Geeks, hecha a partir del template [`machine-learning-python-template`](https://github.com/4GeeksAcademy/machine-learning-python-template).
 
-## Structure
+Con unos 50.000 pedidos de una app de delivery (enero de 2024 a junio de 2025), el modelo predice **en el momento de confirmar el pedido** si va a llegar más de 5 minutos después de lo prometido. Es una clasificación binaria: llega tarde el 25,5 % de los pedidos entregados.
 
-The project is organized as follows:
+## Resultados
 
-- **`src/app.py`** → Main Python script where your project will run.
-- **`src/explore.ipynb`** → Notebook for exploration and testing. Once exploration is complete, migrate the clean code to `app.py`.
-- **`src/utils.py`** → Auxiliary functions, such as database connection.
-- **`requirements.txt`** → List of required Python packages.
-- **`models/`** → Will contain your SQLAlchemy model classes.
-- **`data/`** → Stores datasets at different stages:
-  - **`data/raw/`** → Raw data.
-  - **`data/interim/`** → Temporarily transformed data.
-  - **`data/processed/`** → Data ready for analysis.
+- **Limpieza.**
+  - Se quitan 180 pedidos repetidos, uno de ellos solo distinto por «PIZZA»/«pizza».
+  - Se normalizan las categorías en mayúsculas.
+  - Las distancias negativas y los importes de 0 € pasan a vacíos, que imputa la tubería.
+  - Se descartan los cancelados y los pedidos con el código de error `tiempo_real_min = 999`.
+  - Quedan 46.875 pedidos.
+- **Comparación** con validación cruzada de 5 folds y precisión media (AP) como métrica:
+  - línea base 0,255;
+  - HistGradientBoosting 0,801 y XGBoost 0,793;
+  - random forest 0,783 y regresión logística 0,775;
+  - árbol de decisión 0,731.
+- **Ajuste.** Búsqueda aleatoria de 30 combinaciones y después una cuadrícula de 24. XGBoost pasa de 0,793 ± 0,005 a 0,806 ± 0,006.
+- **Prueba**, medida una vez:
 
+  | | Línea base | Modelo |
+  |---|---|---|
+  | AP | 0,255 | 0,813 |
+  | ROC AUC | — | 0,912 |
+  | Exactitud | 0,745 | 0,849 |
 
-## ⚡ Initial Setup in Codespaces (Recommended)
+  Con el umbral de 0,36 detecta 1.768 de los 2.391 retrasos (recall 0,74, precisión 0,69). Donde más se equivoca es con probabilidades intermedias, en bici y con lluvia o tormenta.
 
-No manual setup is required, as **Codespaces is automatically configured** with the predefined files created by the academy for you. Just follow these steps:
+## Contenido
 
-1. **Wait for the environment to configure automatically**.
-   - All necessary packages and the database will install themselves.
-   - The automatically created `username` and `db_name` are in the **`.env`** file at the root of the project.
-2. **Once Codespaces is ready, you can start working immediately**.
+| Ruta | Qué es |
+| --- | --- |
+| `src/explore.ipynb` | Notebook ejecutado con las partes 1 a 8 y sus respuestas en celdas de texto |
+| `NOTAS.md` | Respuestas de las partes 9 a 14 y del extra |
+| `src/delivery.py` | Limpieza, columnas y tubería; la usan el notebook y el script |
+| `src/train.py` | Entrena, aplica la barrera y guarda la versión indicada con `--version` |
+| `src/app.py` | Extra: carga el modelo una vez, valida pedidos y predice |
+| `data/raw/delivery_50000.csv` | Dataset de la actividad, sin cambios |
+| `models/llegada_tarde_v1.joblib` | Tubería completa entrenada con todos los pedidos |
+| `models/llegada_tarde_v1.json` | Qué hay en la v1: hiperparámetros, columnas, categorías, umbral, métricas y huella de los datos |
+| `requirements.txt` | Dependencias del template más `joblib`, todas con versión fija |
 
+El resto (`.devcontainer/`, `src/utils.py`, `.env.example`, `data/interim/`, `data/processed/`) viene del template y este proyecto no lo usa.
 
-## 💻 Local Setup (Only if you can't use Codespaces)
+## Ejecución
 
-**Prerequisites**
+En Codespaces el entorno instala `requirements.txt` al crearse. En local:
 
-Make sure you have Python 3.11+ installed on your machine. You will also need pip to install the Python packages.
-
-**Installation**
-
-Clone the project repository to your local machine.
-
-Navigate to the project directory and install the required Python packages:
-
-```bash
+```sh
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Create a database (if necessary)**
+Entrenar una versión nueva (no sobrescribe las existentes y no guarda si la precisión media en la prueba baja de 0,78):
 
-Create a new database within the Postgres engine by customizing and executing the following command:
-
-```bash
-$ psql -U postgres -c "DO \$\$ BEGIN 
-    CREATE USER my_user WITH PASSWORD 'my_password'; 
-    CREATE DATABASE my_database OWNER my_user; 
-END \$\$;"
-```
-Connect to the Postgres engine to use your database, manipulate tables, and data:
-
-```bash
-$ psql -U my_user -d my_database
+```sh
+python src/train.py --version v2
 ```
 
-Once inside PSQL, you can create tables, run queries, insert, update, or delete data, and much more!
+Predecir con pedidos inventados o con un JSON propio:
 
-**Environment Variables**
-
-Create a .env file in the root directory of the project to store your environment variables, such as your database connection string:
-
-```makefile
-DATABASE_URL="postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB_NAME>"
-
-#example
-DATABASE_URL="postgresql://my_user:my_password@localhost:5432/my_database"
-```
-
-## Running the Application
-
-To run the application, execute the app.py script from the root directory of the project:
-
-```bash
+```sh
 python src/app.py
+python src/app.py pedidos.json --version v1
 ```
 
-## Adding Models
-
-To add SQLAlchemy model classes, create new Python script files within the models/ directory. These classes should be defined according to your database schema.
-
-Example model definition (`models/example_model.py`):
-
-```py
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
-
-Base = declarative_base()
-
-class ExampleModel(Base):
-    __tablename__ = 'example_table'
-    id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(unique=True)
-```
-
-## Working with Data
-
-You can place your raw datasets in the data/raw directory, intermediate datasets in data/interim, and processed datasets ready for analysis in data/processed.
-
-To process data, you can modify the app.py script to include your data processing steps, using pandas for data manipulation and analysis.
-
-## Contributors
-
-This template was built as part of the [Data Science and Machine Learning Bootcamp](https://4geeksacademy.com/us/coding-bootcamps/datascience-machine-learning) by 4Geeks Academy by [Alejandro Sanchez](https://twitter.com/alesanchezr) and many other contributors. Learn more about [4Geeks Academy BootCamp programs](https://4geeksacademy.com/us/programs) here.
-
-Other templates and resources like this can be found on the school's GitHub page.
+El notebook tarda unos 30 minutos en ejecutarse entero, sobre todo por las búsquedas de hiperparámetros. Los scripts limitan OpenMP a 8 hilos (`OMP_NUM_THREADS`): en la máquina donde se hizo, con 16, el entrenamiento se quedaba atascado.
